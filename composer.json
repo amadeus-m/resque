@@ -1,5 +1,5 @@
 {
-  "name": "resquebundle/resque",
+  "name": "amadeus-m/resque",
   "type": "symfony-bundle",
   "description": "A Symfony 2-3 bundle to manage Resque job queues",
   "keywords": [
@@ -11,7 +11,7 @@
     "symfony3",
     "redis"
   ],
-  "homepage": "https://github.com/resquebundle/resque/",
+  "homepage": "https://github.com/amadeus-m/resque/",
   "license": "MIT",
   "authors": [
     {
