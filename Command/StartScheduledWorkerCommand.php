@@ -85,7 +85,7 @@ class StartScheduledWorkerCommand extends ContainerAwareCommand
             }
         }
 
-        $workdirectory = $workdirectory ? $workdirectory . '/../vendor/resquebundle/resque/bin/' : __DIR__ . '/../bin/';
+        $workdirectory = $workdirectory ? $workdirectory . '/../vendor/amadeus-m/resque/bin/' : __DIR__ . '/../bin/';
         $workerCommand = $phpExecutable . ' ' . $workdirectory . 'resque-scheduler';
 
         if (!$input->getOption('foreground')) {
