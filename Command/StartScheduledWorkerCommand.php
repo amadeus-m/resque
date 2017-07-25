@@ -35,7 +35,7 @@ class StartScheduledWorkerCommand extends ContainerAwareCommand
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $pidFile = $this->getContainer()->get('kernel')->getCacheDir() . '/resque_scheduledworker.pid';
+        $pidFile = $this->getContainer()->get('kernel')->getLogDir() . '/resque_scheduledworker.pid';
         if (file_exists($pidFile) && !$input->getOption('force')) {
             throw new \Exception('PID file exists - use --force to override');
         }
