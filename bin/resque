@@ -63,6 +63,8 @@ if (!empty($PREFIX)) {
     Resque_Redis::prefix($PREFIX);
 }
 
+Resque_Failure::setBackend(\ResqueBundle\Resque\Failure::class);
+
 // If set, re-attach failed jobs based on retry_strategy
 Resque_Event::listen('onFailure', function (Exception $exception, Resque_Job $job) use ($logger) {
     $args = $job->getArguments();
@@ -83,6 +85,14 @@ Resque_Event::listen('onFailure', function (Exception $exception, Resque_Job $jo
     $delay = $backoff[$args['resque.retry_attempt']];
     $args['resque.retry_attempt']++;
 
+    $id = $job->payload['id'];
+    $parentId = isset($args['resque.parent_id']) ? $args['resque.parent_id'] : null;
+    if ($parentId && $args['resque.retry_attempt'] > 0) {
+        $args['resque.parent_id'] = $parentId;
+    } else {
+        $args['resque.parent_id'] = $id;
+    }
+
     if ($delay == 0) {
         Resque::enqueue($job->queue, $job->payload['class'], $args);
         $logger->log(Psr\Log\LogLevel::ERROR, 'Job failed. Auto re-queued, attempt number: {attempt}', [
@@ -95,6 +105,17 @@ Resque_Event::listen('onFailure', function (Exception $exception, Resque_Job $jo
             'timestamp' => date('Y-m-d H:i:s', $at),
             'attempt'   => $args['resque.retry_attempt'] - 1,
         ]);
+    }
+});
+
+// If set, clear previously created failed logs
+Resque_Event::listen('afterPerform', function (Resque_Job $job) use ($logger) {
+    $args = $job->getArguments();
+    $id = $job->payload['id'];
+    $parentId = isset($args['resque.parent_id']) ? $args['resque.parent_id'] : null;
+    // Remove failed logs for completed job with auto retry
+    if ($parentId && $args['resque.retry_attempt'] > 0) {
+        Resque::redis()->del('failed:' . $parentId);
     }
 });
 

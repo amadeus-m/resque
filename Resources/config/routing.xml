@@ -32,6 +32,10 @@
         <default key="_controller">ResqueBundle:Default:clearFailed</default>
     </route>
 
+    <route id="ResqueBundle_scheduled_clear" path="/scheduled/clear">
+        <default key="_controller">ResqueBundle:Default:clearScheduled</default>
+    </route>
+
     <route id="ResqueBundle_workers" path="/workers">
         <default key="_controller">ResqueBundle:Default:workers</default>
     </route>
