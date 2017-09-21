@@ -370,15 +370,35 @@ class Resque implements EnqueueInterface
      * @param int $count
      * @return array
      */
-    public function getFailedJobs($start = -100, $count = 100)
+    public function getFailedJobs()
     {
-        $jobs = \Resque::redis()->lrange('failed', $start, $count);
-
         $result = [];
 
-        foreach ($jobs as $job) {
-            $result[] = new FailedJob(json_decode($job, TRUE));
+        foreach(\Resque::redis()->keys('failed:*') as $index => $key)
+        {
+            $key = \Resque::redis()->removePrefix($key);
+            $jobs = \Resque::redis()->lrange($key, 0, -1);
+            foreach ($jobs as $job) {
+                $failedJob = new FailedJob(json_decode($job, TRUE));
+                $parentId = $failedJob->getParentId();
+                if ($parentId && $failedJob->getRetryAttempt() > 1) {
+                    $id = $parentId;
+                } else {
+                    $id = $failedJob->getId();
+                }
+                if (!$result[$id]) {
+                    $result[$id] = [];
+                }
+                $result[$id][] = $failedJob;
+            }
+            usort($result[$id], function ($a, $b) {
+                return strtotime($a->getFailedAt()) - strtotime($b->getFailedAt());
+            });
         }
+
+        usort($result, function ($a, $b) {
+            return strtotime($a[0]->getFailedAt()) - strtotime($b[0]->getFailedAt());
+        });
 
         return $result;
     }
@@ -388,7 +408,7 @@ class Resque implements EnqueueInterface
      */
     public function getNumberOfFailedJobs()
     {
-        return \Resque::redis()->llen('failed');
+        return count(\Resque::redis()->keys('failed:*'));
     }
 
     /**
@@ -396,29 +416,79 @@ class Resque implements EnqueueInterface
      *
      * @return int
      */
-    public function retryFailedJobs($clear = false)
+    public function retryFailedJobs($id = null, $clear = false)
     {
-        $jobs = \Resque::redis()->lrange('failed', 0, -1);
-        if ($clear) {
-            $this->clearFailedJobs();
+        if ($id) {
+            $key = 'failed:' . $id;
+        } else {
+            $key = 'failed:*';
         }
-        foreach ($jobs as $job) {
-            $failedJob = new FailedJob(json_decode($job, true));
-            \Resque::enqueue($failedJob->getQueueName(), $failedJob->getName(), $failedJob->getArgs()[0]);
+        $items = \Resque::redis()->keys($key);
+        $length = count($items);
+        foreach ($items as $key) {
+            $key = \Resque::redis()->removePrefix($key);
+            $jobs = \Resque::redis()->lrange($key, 0, -1);
+            /** @var FailedJob $jobToEnqueue */
+            $jobToEnqueue = null;
+            foreach ($jobs as $job) {
+                $failedJob = new FailedJob(json_decode($job, TRUE));
+                if (!$jobToEnqueue || $jobToEnqueue->getRetryAttempt() < $failedJob->getRetryAttempt()) {
+                    $jobToEnqueue = $failedJob;
+                }
+            }
+            $args = $jobToEnqueue->getArgs()[0];
+            if (!isset($args['resque.retry_attempt'])) {
+                $args['resque.retry_attempt'] = 0;
+                $args['resque.parent_id'] = $jobToEnqueue->getId();
+            }
+            $args['resque.retry_attempt']++;
+            $this->clearScheduled($jobToEnqueue->getParentIdOrId());
+            \Resque::enqueue($failedJob->getQueueName(), $jobToEnqueue->getName(), $args);
+            if ($clear) {
+                \Resque::redis()->del($key);
+            }
         }
-        return count($jobs);
+        return $length;
     }
 
     /**
      * @return int
      */
-    public function clearFailedJobs()
+    public function clearFailedJobs($id = null)
     {
-        $length = \Resque::redis()->llen('failed');
-        if ($length > 0) {
-            \Resque::redis()->del('failed');
+        if ($id) {
+            $key = 'failed:' . $id;
+        } else {
+            $key = 'failed:*';
         }
-
+        $items = \Resque::redis()->keys($key);
+        $length = count($items);
+        \Resque::redis()->del($key);
         return $length;
     }
+
+    /**
+     * @return int
+     */
+    public function clearScheduled($id)
+    {
+        if (!$id) {
+            return;
+        }
+        $count = 0;
+
+        foreach(\Resque::redis()->keys('delayed:*') as $key)
+        {
+            $key = \Resque::redis()->removePrefix($key);
+            $jobs = \Resque::redis()->lrange($key, 0, -1);
+            foreach ($jobs as $job) {
+                $data = json_decode($job, TRUE);
+                if (isset($data['args'][0]['resque.parent_id']) && $data['args'][0]['resque.parent_id'] == $id) {
+                    $count += \Resque::redis()->lrem($key, 0, $job);
+                }
+            }
+        }
+        return $count;
+    }
+
 }

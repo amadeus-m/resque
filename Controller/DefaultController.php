@@ -102,19 +102,13 @@ class DefaultController extends Controller
      */
     public function listFailedAction(Request $request)
     {
-        list($start, $count, $showingAll) = $this->getShowParameters($request);
-
-        $jobs = $this->getResque()->getFailedJobs($start, $count);
-
-        if (!$showingAll) {
-            $jobs = array_reverse($jobs);
-        }
+        $jobs = $this->getResque()->getFailedJobs();
 
         return $this->render(
             'ResqueBundle:Default:failed_list.html.twig',
             [
                 'jobs'       => $jobs,
-                'showingAll' => $showingAll,
+                'showingAll' => true,
             ]
         );
     }
@@ -170,9 +164,10 @@ class DefaultController extends Controller
     /**
      * @return RedirectResponse
      */
-    public function retryFailedAction()
+    public function retryFailedAction(Request $request)
     {
-        $count = $this->getResque()->retryFailedJobs();
+        $id = $request->get('id', null);
+        $count = $this->getResque()->retryFailedJobs($id);
 
         $this->addFlash('info', 'Retry '.$count.' failed jobs.');
 
@@ -182,9 +177,10 @@ class DefaultController extends Controller
     /**
      * @return RedirectResponse
      */
-    public function retryClearFailedAction()
+    public function retryClearFailedAction(Request $request)
     {
-        $count = $this->getResque()->retryFailedJobs(true);
+        $id = $request->get('id', null);
+        $count = $this->getResque()->retryFailedJobs($id, true);
 
         $this->addFlash('info', 'Retry and clear '.$count.' failed jobs.');
 
@@ -194,12 +190,27 @@ class DefaultController extends Controller
     /**
      * @return RedirectResponse
      */
-    public function clearFailedAction()
+    public function clearFailedAction(Request $request)
     {
-        $count = $this->getResque()->clearFailedJobs();
+        $id = $request->get('id', null);
+        $count = $this->getResque()->clearFailedJobs($id);
 
         $this->addFlash('info', 'Clear '.$count.' failed jobs.');
 
         return $this->redirectToRoute('ResqueBundle_homepage');
     }
+
+    /**
+     * @return RedirectResponse
+     */
+    public function clearScheduledAction(Request $request)
+    {
+        $id = $request->get('id', null);
+        $count = $this->getResque()->clearScheduled($id);
+
+        $this->addFlash('info', 'Clear '.$count.' scheduled jobs.');
+
+        return $this->redirectToRoute('ResqueBundle_homepage');
+    }
+
 }

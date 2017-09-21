@@ -46,6 +46,30 @@ class FailedJob
     }
 
     /**
+     * @return int
+     */
+    public function getParentId()
+    {
+        $args = $this->getArgs();
+        if ($args && count($args) && isset($args[0]['resque.parent_id'])) {
+            return $args[0]['resque.parent_id'];
+        }
+        return null;
+    }
+
+    /**
+     * @return int
+     */
+    public function getParentIdOrId()
+    {
+        $args = $this->getArgs();
+        if ($args && count($args) && isset($args[0]['resque.parent_id'])) {
+            return $args[0]['resque.parent_id'];
+        }
+        return $this->getId();
+    }
+
+    /**
      * @return string
      */
     public function getQueueName()
@@ -92,4 +116,17 @@ class FailedJob
     {
         return $this->data['payload']['args'];
     }
+
+    /**
+     * @return array
+     */
+    public function getRetryAttempt()
+    {
+        $args = $this->getArgs();
+        if ($args && count($args) && isset($args[0]['resque.retry_attempt'])) {
+            return (int) $args[0]['resque.retry_attempt'] + 1;
+        }
+        return 1;
+    }
+
 }
