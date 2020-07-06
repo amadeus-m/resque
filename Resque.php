@@ -525,7 +525,7 @@ class Resque implements EnqueueInterface
 
         foreach ($jobs AS $j) {
             // Это $j['args'][0] из-за, по-видимому, ошибки в ResqueScheduler::jobToHash.
-            // Там агрументы, зачем-то, заворачиваются в массив ещё раз. Поэтому прямое
+            // Там аргументы, зачем-то, заворачиваются в массив ещё раз. Поэтому прямое
             // сравнение $j['args'] и $job->args будет неверным.
             // Предполагаю что в enqueueOnce оно тоже не сработает.
             if ($j['class'] == get_class($job)
