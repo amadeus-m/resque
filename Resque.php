@@ -100,6 +100,7 @@ class Resque implements EnqueueInterface
 
         foreach ($jobs AS $j) {
             if ($j->job->payload['class'] == get_class($job)) {
+                // Возможно, сравнение ошибочно. См. similarDelayedExist
                 if (count(array_intersect($j->args, $job->args)) == count($job->args)) {
                     return ($trackStatus) ? $j->job->payload['id'] : NULL;
                 }
@@ -168,6 +169,15 @@ class Resque implements EnqueueInterface
         return NULL;
     }
 
+    public function enqueueUniqueAt($at, Job $job)
+    {
+        if ($this->similarDelayedExist($job)) {
+            return null;
+        }
+
+        return $this->enqueueAt($at, $job);
+    }
+
     /**
      * @param $in
      * @param Job $job
@@ -184,6 +194,15 @@ class Resque implements EnqueueInterface
         \ResqueScheduler::enqueueIn($in, $job->queue, \get_class($job), $job->args);
 
         return NULL;
+    }
+
+    public function enqueueUniqueIn($in, Job $job)
+    {
+        if ($this->similarDelayedExist($job)) {
+            return null;
+        }
+
+        return $this->enqueueIn($in, $job);
     }
 
     /**
@@ -491,4 +510,29 @@ class Resque implements EnqueueInterface
         return $count;
     }
 
+
+    private function similarDelayedExist(Job $job): bool {
+        $jobs = [];
+        $redis = \Resque::redis();
+        foreach ($redis->keys("delayed:*") as $key) {
+            $key = $redis->removePrefix($key);
+            $delayed = $redis->lrange($key, 0, -1);
+            foreach ($delayed as $serialized) {
+                $jobs[] = json_decode($serialized, true);
+            }
+        }
+
+        foreach ($jobs AS $j) {
+            // Это $j['args'][0] из-за, по-видимому, ошибки в ResqueScheduler::jobToHash.
+            // Там агрументы, зачем-то, заворачиваются в массив ещё раз. Поэтому прямое
+            // сравнение $j['args'] и $job->args будет неверным.
+            // Предполагаю что в enqueueOnce оно тоже не сработает.
+            if ($j['class'] == get_class($job)
+                    && count(array_intersect_assoc($j['args'][0], $job->args)) == count($job->args)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }
