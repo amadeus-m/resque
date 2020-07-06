@@ -514,6 +514,7 @@ class Resque implements EnqueueInterface
     private function similarDelayedExist(Job $job): bool {
         $jobs = [];
         $redis = \Resque::redis();
+        // Нехорошо сюда тащить названия ключей из resque-scheduler. Но форкать ещё и его не хочется.
         foreach ($redis->keys("delayed:*") as $key) {
             $key = $redis->removePrefix($key);
             $delayed = $redis->lrange($key, 0, -1);
